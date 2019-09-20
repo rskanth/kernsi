@@ -56,8 +56,8 @@ asmlinkage int new_write(unsigned int fd, const char __user *buf, size_t count)
 
 	original_write = get_orig_fn(__NR_write);
 	printk_ratelimited(KERN_INFO
-				"write %s - fd: %d buf: %p count: %ld\n",
-		current->comm, fd, buf, count);
+				"%s: %s - fd: %d buf: %p count: %ld\n",
+			__func__, current->comm, fd, buf, count);
 	if(original_write)
 		return (*original_write)(fd, buf, count);
 	return -1;
@@ -66,8 +66,8 @@ asmlinkage int new_write(unsigned int fd, const char __user *buf, size_t count)
 asmlinkage int new_socket(int domain, int type , int protocol)
 {
 	asmlinkage int (*original_socket)(int, int, int);
-	printk("%s - Domain: 0x%x, type: 0x%x, protocol: 0x%x\n", current->comm,
-		domain, type, protocol);
+	printk_ratelimited("%s: %s - Domain: 0x%x, type: 0x%x, protocol: 0x%x\n",
+			__func__, current->comm, domain, type, protocol);
 	original_socket = get_orig_fn(__NR_socket);
 	if(original_socket)
 	    	return (*original_socket)(domain, type, protocol);
@@ -109,7 +109,7 @@ static int kernsi_init_mod(void)
 	if(ksi_syscall_table == NULL)
 	    return -1;
 	//Changing control bit to allow write
-	write_cr0 (read_cr0 () & (~ 0x10000));
+	write_cr0 (read_cr0 () & (~ X86_CR0_WP));
 	for(i=0;i<MAX_SYSCALLS;i++) {
 	    	entry = &hijack_calls[i];
 		if(entry && entry->new_ptr != NULL) {
@@ -122,7 +122,7 @@ static int kernsi_init_mod(void)
 
 	}
 	//Changing control bit back
-	write_cr0 (read_cr0 () | 0x10000);
+	write_cr0 (read_cr0 () | X86_CR0_WP);
 	return 0;
 }
 
@@ -132,7 +132,7 @@ static void kernsi_exit_mod(void)
 	int i;
 
 	//Cleanup
-	write_cr0 (read_cr0 () & (~ 0x10000));
+	write_cr0 (read_cr0 () & (~ X86_CR0_WP));
 	for(i=0;i<MAX_SYSCALLS;i++) {
 	    	entry = &hijack_calls[i];
 		if(entry->orig_ptr) {
@@ -142,7 +142,7 @@ static void kernsi_exit_mod(void)
 
 		}
 	}
-	write_cr0 (read_cr0 () | 0x10000);
+	write_cr0 (read_cr0 () | X86_CR0_WP);
 	printk("Module exited cleanly");
 	return;
 }
